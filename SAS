@@ -1,0 +1,108 @@
+
+
+/* created macro to designate which dataset being used: FormA.csv (A), FormB.csv (B), Domains FormA.csv (DA), Domains FormB.csv (DB)*/
+%Let x = A; /* Select Form A or B */
+
+proc import datafile = "/home/edoardomuniz0/EPG194/output/Form&x\.csv"
+dbms=csv out= &x replace; /*used replace function to help re-run the data each time */
+run;
+
+proc import datafile = "/home/edoardomuniz0/EPG194/output/Domains Form&x\.csv"
+dbms=csv out= D&x replace; /*used replace function to help re-run the data each time */
+run;
+
+ods noproctitle;
+
+data results&x;
+	set &x;
+	formName="&x";
+	array tests(150) $ Q1-Q150;
+	array key(150) $ _temporary_;
+	array match(150) $ _temporary_;
+	output;
+	
+	
+	if Student = "&x"||"&x"||"&x"||"&x"||"KEY" then do i= 1 to dim(key);
+		key(i) = tests(i);
+	end;
+	
+	else do QuestionNum = 1 to 150;
+		if key(QuestionNum) = tests(QuestionNum) then match(QuestionNum) = 1;
+		else match(QuestionNum) = 0;
+		Scored = match(QuestionNum);
+		output;
+	end;
+	
+	keep formName Student QuestionNum Scored;
+run;
+
+Title "Step 1: Scores Form A Table";
+proc print data= resultsA (firstobs=3 obs=17) noobs label;
+var Student formName Scored QuestionNum;
+Label formName="Form" Scored="Scores" QuestionNum="Question Number";
+run;
+
+Title "Step 1: Scores Form B Table";
+proc print data= resultsB (firstobs=3 obs=17) noobs label;
+var Student formName Scored QuestionNum;
+Label formName="Form" Scored="Scores" QuestionNum="Question Number";
+run;
+
+
+
+proc sql;
+  create table table&x as 
+  select formName,Student,results&x..QuestionNum,Scored,DomainNum
+  from work.results&x inner join work.D&x
+  on results&x..QuestionNum = D&x..QuestionNum;
+quit;
+
+
+
+Title "Step 2: Form A Merging Scores and Domains ";
+proc print data= tableA (obs=15) noobs label;
+var formName Student QuestionNum Scored DomainNum;
+label QuestionNum = "Question Number" Scored = "Scores" DomainNum = "Domain Number" formName="Form"; 
+run;
+
+Title "Step 2: Form B Merging Scores and Domains ";
+proc print data= tableB (obs=15) noobs label;
+var formName Student QuestionNum Scored DomainNum;
+label QuestionNum = "Question Number" Scored = "Scores" DomainNum = "Domain Number" formName="Form"; 
+run;
+
+
+
+data combined;
+	set tableA tableB;
+	Scores= input(Scored, 8.);
+	Students=input(Student, 8.);
+run;
+
+
+/* Used proc means to create a table that took the average salary for each position and called it mainmlb*/  
+
+proc means data= combined nonobs mean sum noprint;
+var Scores;
+class Students DomainNum;
+id formName;
+output out= combinedfull (drop=_TYPE_ _FREQ_) sum=Total_Score mean=percent; 
+run;
+
+proc sort data = combinedfull out= combinedsorted;
+ by Students;
+ run;
+
+Title "Step 5: Student Scores (Overall and by Domain Number)";
+Proc print data= combinedsorted (firstobs=7 obs=30) Label noobs;
+var Students DomainNum formName percent Total_score;
+label Students="Student" DomainNum= "Domain Number" Total_Score="Student Scores" percent="Student Percents" formName="Form";
+run;
+
+
+
+
+
+
+
+
